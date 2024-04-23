@@ -1,0 +1,69 @@
+#include <Arduino.h>
+#include <DHT.h>
+#include <LiquidCrystal_I2C.h>
+#include <SoftwareSerial.h>
+
+// Define os números dos pinos para os componentes
+const int gasSensorPin = A0;
+const int buzzerPin = 12;
+const int dhtPin = A1;
+const int ledPin = 9;
+
+#define GAS_THRESHOLD 20
+#define ALARM_DURATION 10000 // Duração do alarme em milissegundos
+
+DHT dht(dhtPin, DHT22);
+LiquidCrystal_I2C lcd(0x27, 16, 2);
+SoftwareSerial hc05(10, 11);
+
+// Variáveis para controle da detecção de gás e do tempo
+bool gas_detected = false;
+unsigned long gas_detected_timestamp = 0;
+
+void setup() {
+  pinMode(gasSensorPin, INPUT);
+  pinMode(buzzerPin, OUTPUT);
+  pinMode(ledPin, OUTPUT);
+  dht.begin();
+  Serial.begin(9600);
+  hc05.begin(9600);
+  lcd.init();
+  lcd.backlight();
+  lcd.clear();
+}
+
+void loop() {
+  int gasValue = analogRead(gasSensorPin);
+
+  // Se gás for detectado, ative o buzzer e o LED
+  if (gasValue > GAS_THRESHOLD && !gas_detected) {
+    gas_detected = true;
+    gas_detected_timestamp = millis(); // Registre o timestamp
+  }
+
+  if (gas_detected) {
+    if (millis() - gas_detected_timestamp < ALARM_DURATION) {
+      tone(buzzerPin, 1000); // Ative o buzzer com frequência de 1000 Hz
+      digitalWrite(ledPin, HIGH); // Ligue o LED
+      lcd.setCursor(0, 0);
+      lcd.print("GAS DETECTADO");
+      lcd.setCursor(0, 1);
+      lcd.print("Valor: " + String(gasValue)); // Exibe o valor de gás
+      delay(200); // Aguarde 200 milissegundos
+      noTone(buzzerPin); // Desligue o Buzzer
+      digitalWrite(ledPin, LOW); // Desligue o LED
+      delay(200); // Aguarde 200 milissegundos
+    } else {
+      gas_detected = false; // Redefina a flag
+    }
+  } else {
+    noTone(buzzerPin);
+    digitalWrite(ledPin, LOW); // Desligue o LED
+    float temperature = dht.readTemperature();
+    float humidity = dht.readHumidity();
+    lcd.setCursor(0, 0);
+    lcd.print("Temp: " + String(temperature) + "C");
+    lcd.setCursor(0, 1);
+    lcd.print("Hum: " + String(humidity) + "%");
+    delay(10); // 
+  }
